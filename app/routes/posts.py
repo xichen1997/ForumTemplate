@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Form, Response
 from app.models import Post, PostCreate, PostUpdate
 from app.database import posts
 from typing import List
@@ -6,33 +6,53 @@ import markdown
 from bson import ObjectId
 from app.utils import get_current_user
 from datetime import datetime
+from fastapi.responses import JSONResponse, RedirectResponse
 
 router = APIRouter()
 
-@router.post("/", response_model=Post)
-async def create_post(post: PostCreate, current_user: str = Depends(get_current_user)):
-    post_dict = post.dict()
-    post_dict["author_id"] = ObjectId(current_user)
-    post_dict["content"] = markdown.markdown(post_dict["content"])
+@router.post("/")
+async def create_post(
+    title: str = Form(...),
+    content: str = Form(...),
+    current_user: str = Depends(get_current_user)
+):
+    post_dict = {
+        "title": title,
+        "content": markdown.markdown(content),
+        "author_id": ObjectId(current_user),
+        "created_at": datetime.utcnow()
+    }
     
     result = await posts.insert_one(post_dict)
-    created_post = await posts.find_one({"_id": result.inserted_id})
-    return created_post
+    return RedirectResponse(url="/", status_code=303)
 
-@router.get("/", response_model=List[Post])
+@router.get("/")
 async def get_posts():
     cursor = posts.find().sort("created_at", -1)
-    return await cursor.to_list(length=None)
+    all_posts = await cursor.to_list(length=None)
+    # Convert ObjectId to string for JSON response
+    for post in all_posts:
+        post["_id"] = str(post["_id"])
+        post["author_id"] = str(post["author_id"])
+    return JSONResponse(content=all_posts)
 
-@router.get("/{post_id}", response_model=Post)
+@router.get("/{post_id}")
 async def get_post(post_id: str):
     post = await posts.find_one({"_id": ObjectId(post_id)})
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
-    return post 
+    # Convert ObjectId to string for JSON response
+    post["_id"] = str(post["_id"])
+    post["author_id"] = str(post["author_id"])
+    return JSONResponse(content=post)
 
-@router.patch("/{post_id}", response_model=Post)
-async def update_post(post_id: str, post_update: PostUpdate, current_user: str = Depends(get_current_user)):
+@router.patch("/{post_id}")
+async def update_post(
+    post_id: str,
+    title: str = Form(None),
+    content: str = Form(None),
+    current_user: str = Depends(get_current_user)
+):
     # Check if post exists
     post = await posts.find_one({"_id": ObjectId(post_id)})
     if not post:
@@ -44,10 +64,10 @@ async def update_post(post_id: str, post_update: PostUpdate, current_user: str =
     
     # Prepare update data
     update_data = {}
-    if post_update.title is not None:
-        update_data["title"] = post_update.title
-    if post_update.content is not None:
-        update_data["content"] = markdown.markdown(post_update.content)
+    if title is not None:
+        update_data["title"] = title
+    if content is not None:
+        update_data["content"] = markdown.markdown(content)
     
     if update_data:
         update_data["updated_at"] = datetime.utcnow()
@@ -57,4 +77,43 @@ async def update_post(post_id: str, post_update: PostUpdate, current_user: str =
         )
     
     updated_post = await posts.find_one({"_id": ObjectId(post_id)})
-    return updated_post 
+    # Convert ObjectId to string for JSON response
+    updated_post["_id"] = str(updated_post["_id"])
+    updated_post["author_id"] = str(updated_post["author_id"])
+    return JSONResponse(content=updated_post)
+
+@router.delete("/{post_id}")
+async def delete_post(
+    post_id: str,
+    current_user: str = Depends(get_current_user)
+):
+    # Check if post exists
+    post = await posts.find_one({"_id": ObjectId(post_id)})
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    # Check if user is the author
+    if str(post["author_id"]) != current_user:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this post")
+    
+    # Delete the post
+    await posts.delete_one({"_id": ObjectId(post_id)})
+    return Response(status_code=204)
+
+@router.post("/{post_id}/delete")
+async def delete_post_with_post(
+    post_id: str,
+    current_user: str = Depends(get_current_user)
+):
+    # Check if post exists
+    post = await posts.find_one({"_id": ObjectId(post_id)})
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    # Check if user is the author
+    if str(post["author_id"]) != current_user:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this post")
+    
+    # Delete the post
+    await posts.delete_one({"_id": ObjectId(post_id)})
+    return RedirectResponse(url="/", status_code=303) 

@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException, status, Form, Request
+from fastapi import APIRouter, HTTPException, status, Form, Request, Response
 from fastapi.responses import RedirectResponse
 from app.database import users
-from app.utils import verify_password, get_password_hash
+from app.utils import verify_password, get_password_hash, create_access_token
 from typing import Optional
+from datetime import timedelta
 
 router = APIRouter()
 
@@ -22,11 +23,12 @@ async def register(
         "hashed_password": get_password_hash(password)
     }
     
-    await users.insert_one(user_dict)
+    result = await users.insert_one(user_dict)
     return RedirectResponse(url="/login", status_code=302)
 
 @router.post("/token")
 async def login(
+    response: Response,
     username: str = Form(...),
     password: str = Form(...),
 ):
@@ -37,8 +39,27 @@ async def login(
             detail="Incorrect username or password"
         )
     
-    return RedirectResponse(url="/", status_code=302)
+    # Create access token
+    access_token = create_access_token(
+        data={"sub": str(user["_id"])},
+        expires_delta=timedelta(minutes=60)
+    )
+    
+    # Set the token as an HTTP-only cookie
+    response = RedirectResponse(url="/", status_code=302)
+    response.set_cookie(
+        key="access_token",
+        value=f"Bearer {access_token}",
+        httponly=True,
+        max_age=3600,
+        secure=True,
+        samesite="lax"
+    )
+    
+    return response
 
 @router.get("/logout")
-async def logout():
-    return RedirectResponse(url="/login", status_code=302) 
+async def logout(response: Response):
+    response = RedirectResponse(url="/login", status_code=302)
+    response.delete_cookie(key="access_token")
+    return response 
