@@ -1,16 +1,16 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 import os
-import asyncio
-from pymongo.server_api import ServerApi
 
 load_dotenv()
 
+# Get MongoDB Atlas URL from environment variable
 MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+client = AsyncIOMotorClient(MONGODB_URL)
 
-# Create a new client and connect to the server
-client = AsyncIOMotorClient(MONGODB_URL, server_api=ServerApi('1'))
-db = client.forum_db
+# Get database name from environment variable or use default
+DB_NAME = os.getenv("DB_NAME", "forum_db")
+db = client[DB_NAME]
 
 # Collections
 users = db.users

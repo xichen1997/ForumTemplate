@@ -1,4 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Form, Response
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from fastapi import Request
 from app.models import Post, PostCreate, PostUpdate
 from app.database import posts, comments
 from typing import List
@@ -6,9 +9,13 @@ import markdown
 from bson import ObjectId
 from app.utils import get_current_user
 from datetime import datetime
-from fastapi.responses import JSONResponse, RedirectResponse
 
 router = APIRouter()
+templates = Jinja2Templates(directory="app/templates")
+
+@router.get("/create", response_class=JSONResponse)
+async def create_post_page(request: Request, current_user: str = Depends(get_current_user)):
+    return templates.TemplateResponse("create_post.html", {"request": request, "current_user": current_user})
 
 @router.post("/")
 async def create_post(
