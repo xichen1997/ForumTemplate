@@ -1,15 +1,16 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 import os
+import asyncio
 
 load_dotenv()
 
 # Get MongoDB Atlas URL from environment variable
-MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+MONGODB_URL = os.getenv("MONGODB_URL")
 client = AsyncIOMotorClient(MONGODB_URL)
 
 # Get database name from environment variable or use default
-DB_NAME = os.getenv("DB_NAME", "forum_db")
+DB_NAME = os.getenv("DB_NAME")
 db = client[DB_NAME]
 
 # Collections
@@ -38,5 +39,6 @@ async def init_db():
     await test_connection()
     await create_indexes()
 
-# Run initialization
-asyncio.create_task(init_db()) 
+# Only create the task if we're running in an event loop
+if asyncio.get_event_loop().is_running():
+    asyncio.create_task(init_db()) 
