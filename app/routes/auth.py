@@ -1,49 +1,44 @@
-from fastapi import APIRouter, HTTPException, Depends, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from app.models import User
+from fastapi import APIRouter, HTTPException, status, Form, Request
+from fastapi.responses import RedirectResponse
 from app.database import users
-from app.utils import verify_password, get_password_hash, create_access_token
-from datetime import timedelta
-from bson import ObjectId
-from pydantic import BaseModel
-
-# Add this new model for registration
-class UserCreate(BaseModel):
-    username: str
-    email: str
-    password: str
+from app.utils import verify_password, get_password_hash
+from typing import Optional
 
 router = APIRouter()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# Update the register endpoint
 @router.post("/register")
-async def register(user: UserCreate):
+async def register(
+    username: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+):
     # Check if username exists
-    if await users.find_one({"username": user.username}):
+    if await users.find_one({"username": username}):
         raise HTTPException(status_code=400, detail="Username already registered")
     
     user_dict = {
-        "username": user.username,
-        "email": user.email,
-        "hashed_password": get_password_hash(user.password)
+        "username": username,
+        "email": email,
+        "hashed_password": get_password_hash(password)
     }
     
-    result = await users.insert_one(user_dict)
-    return {"message": "User created successfully"}
+    await users.insert_one(user_dict)
+    return RedirectResponse(url="/login", status_code=302)
 
 @router.post("/token")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = await users.find_one({"username": form_data.username})
-    if not user or not verify_password(form_data.password, user["hashed_password"]):
+async def login(
+    username: str = Form(...),
+    password: str = Form(...),
+):
+    user = await users.find_one({"username": username})
+    if not user or not verify_password(password, user["hashed_password"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="Incorrect username or password"
         )
     
-    access_token = create_access_token(
-        data={"sub": str(user["_id"])},
-        expires_delta=timedelta(minutes=30)
-    )
-    return {"access_token": access_token, "token_type": "bearer"} 
+    return RedirectResponse(url="/", status_code=302)
+
+@router.get("/logout")
+async def logout():
+    return RedirectResponse(url="/login", status_code=302) 

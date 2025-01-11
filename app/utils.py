@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 from typing import Optional
 import os
 from dotenv import load_dotenv
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, status, Cookie, Request
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from app.database import users
 from bson import ObjectId
 
@@ -17,14 +17,49 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=False)
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+def get_token_from_cookie(request: Request) -> Optional[str]:
+    authorization = request.cookies.get("access_token")
+    if not authorization:
+        return None
+    try:
+        scheme, token = authorization.split()
+        if scheme.lower() != "bearer":
+            return None
+        return token
+    except Exception:
+        return None
+
+async def get_current_user(request: Request):
+    token = get_token_from_cookie(request)
+    if not token:
+        return None
+        
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if user_id is None:
+            return None
+    except JWTError:
+        return None
+        
+    user = await users.find_one({"_id": ObjectId(user_id)})
+    if user is None:
+        return None
+    return str(user["_id"])
+
+async def require_current_user(request: Request):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    token = get_token_from_cookie(request)
+    if not token:
+        raise credentials_exception
+        
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")

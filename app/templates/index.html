@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Home - AI Group Forum{% endblock %}
+
+{% block content %}
+{% if current_user.is_authenticated %}
+<div class="mb-4">
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">Create a New Post</h5>
+            <form method="POST" action="/api/posts/">
+                <div class="mb-3">
+                    <label for="title" class="form-label">Title</label>
+                    <input type="text" class="form-control" id="title" name="title" required>
+                </div>
+                <div class="mb-3">
+                    <label for="content" class="form-label">Content</label>
+                    <textarea class="form-control" id="content" name="content" rows="3" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Create Post</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="posts-container">
+    {% for post in posts %}
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5 class="card-title">{{ post.title }}</h5>
+            <h6 class="card-subtitle mb-2 text-muted">
+                Posted by {{ post.author.username }} on {{ post.created_at.strftime('%Y-%m-%d %H:%M') }}
+            </h6>
+            <p class="card-text">{{ post.content | safe }}</p>
+
+            {% if current_user.is_authenticated and current_user._id|string == post.author.id %}
+            <div class="post-actions mb-3">
+                <a href="/edit-post/{{ post.id }}" class="btn btn-sm btn-primary">Edit</a>
+                <form method="POST" action="/api/posts/{{ post.id }}/delete" class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                </form>
+            </div>
+            {% endif %}
+
+            <!-- Comments Section -->
+            <div class="comments-section mt-3">
+                <h6>Comments</h6>
+                {% if current_user.is_authenticated %}
+                <form class="mb-3" method="POST" action="/api/comments/{{ post.id }}">
+                    <div class="input-group">
+                        <input type="text" class="form-control" name="content" placeholder="Add a comment..." required>
+                        <button class="btn btn-outline-primary" type="submit">Comment</button>
+                    </div>
+                </form>
+                {% endif %}
+
+                {% if post.comments %}
+                <div class="comments-list">
+                    {% for comment in post.comments %}
+                    <div class="comment-item border-bottom py-2">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <strong>{{ comment.author.username }}</strong>
+                                <small class="text-muted">{{ comment.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                <div>{{ comment.content }}</div>
+                            </div>
+                            {% if current_user.is_authenticated and current_user._id|string == comment.author.id %}
+                            <form method="POST" action="/api/comments/{{ comment.id }}/delete" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

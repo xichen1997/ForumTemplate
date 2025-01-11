@@ -36,6 +36,10 @@ class PostCreate(BaseModel):
     title: str
     content: str
 
+class PostUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+
 class Post(BaseModel):
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
