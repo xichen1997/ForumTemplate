@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Form, Response
 from app.models import Post, PostCreate, PostUpdate
-from app.database import posts
+from app.database import posts, comments
 from typing import List
 import markdown
 from bson import ObjectId
@@ -30,10 +30,24 @@ async def create_post(
 async def get_posts():
     cursor = posts.find().sort("created_at", -1)
     all_posts = await cursor.to_list(length=None)
-    # Convert ObjectId to string for JSON response
+    
+    # Convert ObjectId to string for JSON response and add comments
     for post in all_posts:
         post["_id"] = str(post["_id"])
         post["author_id"] = str(post["author_id"])
+        
+        # Get comments for this post
+        comments_cursor = comments.find({"post_id": ObjectId(post["_id"])}).sort("created_at", -1)
+        post_comments = await comments_cursor.to_list(length=None)
+        
+        # Convert ObjectId to string in comments
+        for comment in post_comments:
+            comment["_id"] = str(comment["_id"])
+            comment["post_id"] = str(comment["post_id"])
+            comment["author_id"] = str(comment["author_id"])
+        
+        post["comments"] = post_comments
+    
     return JSONResponse(content=all_posts)
 
 @router.get("/{post_id}")
@@ -41,9 +55,22 @@ async def get_post(post_id: str):
     post = await posts.find_one({"_id": ObjectId(post_id)})
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
+    
     # Convert ObjectId to string for JSON response
     post["_id"] = str(post["_id"])
     post["author_id"] = str(post["author_id"])
+    
+    # Get comments for this post
+    cursor = comments.find({"post_id": ObjectId(post_id)}).sort("created_at", -1)
+    post_comments = await cursor.to_list(length=None)
+    
+    # Convert ObjectId to string in comments
+    for comment in post_comments:
+        comment["_id"] = str(comment["_id"])
+        comment["post_id"] = str(comment["post_id"])
+        comment["author_id"] = str(comment["author_id"])
+    
+    post["comments"] = post_comments
     return JSONResponse(content=post)
 
 @router.patch("/{post_id}")

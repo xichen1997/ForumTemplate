@@ -7,7 +7,7 @@ from pathlib import Path
 from app.routes import auth, posts, comments
 from app.startup import startup_db
 from app.utils import get_current_user
-from app.database import users, posts as posts_collection
+from app.database import users, posts as posts_collection, comments as comments_collection
 from bson import ObjectId
 from datetime import datetime
 
@@ -60,6 +60,26 @@ async def root(request: Request):
     formatted_posts = []
     for post in all_posts:
         author = await users.find_one({"_id": post["author_id"]})
+        
+        # Get comments for this post
+        comments_cursor = comments_collection.find({"post_id": post["_id"]}).sort("created_at", -1)
+        post_comments = await comments_cursor.to_list(length=None)
+        
+        # Format comments with author information
+        formatted_comments = []
+        for comment in post_comments:
+            comment_author = await users.find_one({"_id": comment["author_id"]})
+            formatted_comment = {
+                "id": str(comment["_id"]),
+                "content": comment["content"],
+                "created_at": comment.get("created_at", datetime.utcnow()),
+                "author": {
+                    "username": comment_author["username"] if comment_author else "Unknown",
+                    "id": str(comment["author_id"])
+                }
+            }
+            formatted_comments.append(formatted_comment)
+        
         formatted_post = {
             "id": str(post["_id"]),
             "title": post["title"],
@@ -68,7 +88,8 @@ async def root(request: Request):
             "author": {
                 "username": author["username"] if author else "Unknown",
                 "id": str(post["author_id"])
-            }
+            },
+            "comments": formatted_comments
         }
         formatted_posts.append(formatted_post)
     
