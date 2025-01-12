@@ -22,6 +22,7 @@ db = client[DB_NAME]
 users = db.users
 posts = db.posts
 comments = db.comments
+invitation_codes = db.invitation_codes
 
 # Test the connection
 async def test_connection():
@@ -46,8 +47,25 @@ async def create_indexes():
 
 # Initialize database
 async def init_db():
-    await test_connection()
-    await create_indexes()
+    try:
+        # Create collections if they don't exist
+        if "users" not in await db.list_collection_names():
+            await db.create_collection("users")
+        
+        if "posts" not in await db.list_collection_names():
+            await db.create_collection("posts")
+            
+        if "comments" not in await db.list_collection_names():
+            await db.create_collection("comments")
+            
+        if "invitation_codes" not in await db.list_collection_names():
+            await db.create_collection("invitation_codes")
+        
+        print("Database collections initialized successfully")
+        return True
+    except Exception as e:
+        print(f"Error initializing database: {e}")
+        return False
 
 # Only create the task if we're running in an event loop
 if asyncio.get_event_loop().is_running():

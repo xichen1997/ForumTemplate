@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - AI Group Forum{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <h2 class="mb-4">Admin Dashboard</h2>
+
+            <!-- Invitation Codes Section -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0">Invitation Codes</h3>
+                    <form method="POST" action="/api/auth/generate-invite" class="d-inline">
+                        <button type="submit" class="btn btn-primary">Generate New Code</button>
+                    </form>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Created At</th>
+                                    <th>Created By</th>
+                                    <th>Status</th>
+                                    <th>Used By</th>
+                                    <th>Used At</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for code in invitation_codes %}
+                                <tr>
+                                    <td><code>{{ code.code }}</code></td>
+                                    <td>{{ code.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                    <td>{{ code.created_by_username }}</td>
+                                    <td>
+                                        {% if code.used_by %}
+                                        <span class="badge bg-secondary">Used</span>
+                                        {% else %}
+                                        <span class="badge bg-success">Available</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ code.used_by_username if code.used_by_username else '-' }}</td>
+                                    <td>{{ code.used_at.strftime('%Y-%m-%d %H:%M:%S') if code.used_at else '-' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Copy to Clipboard Script -->
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const codeElements = document.querySelectorAll('code');
+        codeElements.forEach(el => {
+            el.style.cursor = 'pointer';
+            el.title = 'Click to copy';
+            el.addEventListener('click', function () {
+                navigator.clipboard.writeText(this.textContent).then(() => {
+                    // Visual feedback
+                    const originalText = this.textContent;
+                    this.textContent = 'Copied!';
+                    setTimeout(() => {
+                        this.textContent = originalText;
+                    }, 1000);
+                });
+            });
+        });
+    });
+</script>
+{% endblock %}

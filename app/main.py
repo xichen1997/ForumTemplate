@@ -7,7 +7,7 @@ from pathlib import Path
 from app.routes import auth, posts, comments
 from app.startup import startup_db
 from app.utils import get_current_user, auth_middleware
-from app.database import users, posts as posts_collection, comments as comments_collection
+from app.database import users, posts as posts_collection, comments as comments_collection, db
 from bson import ObjectId
 from datetime import datetime
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -146,4 +146,54 @@ async def settings(request: Request):
     return templates.TemplateResponse("settings.html", {
         "request": request,
         "current_user": current_user
-    }) 
+    })
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard(request: Request):
+    try:
+        user_id = await get_current_user(request)
+        if not user_id:
+            return RedirectResponse(url="/login", status_code=303)
+            
+        current_user = await users.find_one({"_id": ObjectId(user_id)})
+        if not current_user or not current_user.get("is_admin"):
+            print(f"User {user_id} attempted to access admin but is not admin")
+            return RedirectResponse(url="/", status_code=303)
+        
+        # Add is_authenticated flag
+        current_user["is_authenticated"] = True
+        
+        # Get all invitation codes with user information
+        cursor = await db.invitation_codes.find().sort("created_at", -1).to_list(length=None)
+        
+        # Add username information to codes
+        formatted_codes = []
+        for code in cursor:
+            try:
+                created_by = await users.find_one({"_id": code["created_by"]})
+                used_by = await users.find_one({"_id": code["used_by"]}) if code.get("used_by") else None
+                
+                formatted_code = {
+                    "code": code["code"],
+                    "created_at": code["created_at"],
+                    "created_by_username": created_by["username"] if created_by else "Unknown",
+                    "used_by": code.get("used_by"),
+                    "used_by_username": used_by["username"] if used_by else None,
+                    "used_at": code.get("used_at")
+                }
+                formatted_codes.append(formatted_code)
+            except Exception as e:
+                print(f"Error formatting code {code}: {e}")
+                continue
+        
+        print(f"Found {len(formatted_codes)} invitation codes")
+        
+        return templates.TemplateResponse("admin.html", {
+            "request": request,
+            "current_user": current_user,
+            "invitation_codes": formatted_codes
+        })
+        
+    except Exception as e:
+        print(f"Admin dashboard error: {e}")
+        return RedirectResponse(url="/login", status_code=303) 
