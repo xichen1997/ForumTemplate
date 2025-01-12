@@ -30,7 +30,22 @@ class User(BaseModel):
     username: str
     email: str
     hashed_password: str
+    is_admin: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class InvitationCode(BaseModel):
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str},
+        populate_by_name=True,
+    )
+    
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    code: str
+    created_by: PyObjectId
+    used_by: Optional[PyObjectId] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    used_at: Optional[datetime] = None
 
 class PostCreate(BaseModel):
     title: str

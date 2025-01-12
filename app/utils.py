@@ -5,6 +5,7 @@ from typing import Optional
 import os
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status, Cookie, Request
+from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from app.database import users
 from bson import ObjectId
@@ -18,6 +19,22 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=False)
+
+PUBLIC_PATHS = {"/login", "/signup", "/register", "/static", "/api/auth/login", "/api/auth/register"}
+
+async def auth_middleware(request: Request, call_next):
+    path = request.url.path
+    
+    # Allow public paths
+    if any(path.startswith(public_path) for public_path in PUBLIC_PATHS):
+        return await call_next(request)
+    
+    # Check if user is authenticated
+    user_id = await get_current_user(request)
+    if not user_id:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    return await call_next(request)
 
 def get_token_from_cookie(request: Request) -> Optional[str]:
     authorization = request.cookies.get("access_token")

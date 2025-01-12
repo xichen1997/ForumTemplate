@@ -6,10 +6,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from pathlib import Path
 from app.routes import auth, posts, comments
 from app.startup import startup_db
-from app.utils import get_current_user
+from app.utils import get_current_user, auth_middleware
 from app.database import users, posts as posts_collection, comments as comments_collection
 from bson import ObjectId
 from datetime import datetime
+from starlette.middleware.base import BaseHTTPMiddleware
 
 app = FastAPI(title="Forum API")
 
@@ -30,6 +31,9 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 
 # Templates configuration
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
+# Add auth middleware
+app.add_middleware(BaseHTTPMiddleware, dispatch=auth_middleware)
 
 @app.on_event("startup")
 async def startup():
@@ -101,32 +105,26 @@ async def root(request: Request):
 
 @app.get("/login", response_class=HTMLResponse)
 async def login(request: Request):
-    current_user = None
-    try:
-        user_id = await get_current_user(request)
-        if user_id:
-            return RedirectResponse(url="/")
-    except:
-        pass
+    # If user is already logged in, redirect to home
+    user_id = await get_current_user(request)
+    if user_id:
+        return RedirectResponse(url="/", status_code=303)
     
     return templates.TemplateResponse("login.html", {
         "request": request,
-        "current_user": current_user or {"is_authenticated": False}
+        "current_user": {"is_authenticated": False}
     })
 
 @app.get("/signup", response_class=HTMLResponse)
 async def signup(request: Request):
-    current_user = None
-    try:
-        user_id = await get_current_user(request)
-        if user_id:
-            return RedirectResponse(url="/")
-    except:
-        pass
+    # If user is already logged in, redirect to home
+    user_id = await get_current_user(request)
+    if user_id:
+        return RedirectResponse(url="/", status_code=303)
     
     return templates.TemplateResponse("signup.html", {
         "request": request,
-        "current_user": current_user or {"is_authenticated": False}
+        "current_user": {"is_authenticated": False}
     })
 
 @app.get("/settings", response_class=HTMLResponse)
