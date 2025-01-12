@@ -46,14 +46,15 @@ app.include_router(comments.router, prefix="/api/comments", tags=["Comments"])
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
-    current_user = {"is_authenticated": False}
-    
-    user_id = await get_current_user(request)
-    if user_id:
-        user = await users.find_one({"_id": ObjectId(user_id)})
-        if user:
-            user["is_authenticated"] = True
-            current_user = user
+    current_user = None
+    try:
+        user_id = await get_current_user(request)
+        if user_id:
+            current_user = await users.find_one({"_id": ObjectId(user_id)})
+            if current_user:
+                current_user["is_authenticated"] = True
+    except:
+        pass
 
     # Get all posts with author information
     cursor = posts_collection.find().sort("created_at", -1)
