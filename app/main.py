@@ -46,15 +46,14 @@ app.include_router(comments.router, prefix="/api/comments", tags=["Comments"])
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
-    current_user = None
-    try:
-        user_id = await get_current_user(request)
-        if user_id:
-            current_user = await users.find_one({"_id": ObjectId(user_id)})
-            if current_user:
-                current_user["is_authenticated"] = True
-    except:
-        pass
+    current_user = {"is_authenticated": False}
+    
+    user_id = await get_current_user(request)
+    if user_id:
+        user = await users.find_one({"_id": ObjectId(user_id)})
+        if user:
+            user["is_authenticated"] = True
+            current_user = user
 
     # Get all posts with author information
     cursor = posts_collection.find().sort("created_at", -1)
@@ -100,7 +99,7 @@ async def root(request: Request):
     return templates.TemplateResponse("index.html", {
         "request": request,
         "posts": formatted_posts,
-        "current_user": current_user or {"is_authenticated": False}
+        "current_user": current_user
     })
 
 @app.get("/login", response_class=HTMLResponse)
@@ -132,12 +131,16 @@ async def settings(request: Request):
     try:
         user_id = await get_current_user(request)
         if not user_id:
-            return RedirectResponse(url="/login")
+            return RedirectResponse(url="/login", status_code=303)
         current_user = await users.find_one({"_id": ObjectId(user_id)})
         if not current_user:
-            return RedirectResponse(url="/login")
+            return RedirectResponse(url="/login", status_code=303)
+        
+        # Add is_authenticated flag
+        current_user["is_authenticated"] = True
+        
     except:
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     
     return templates.TemplateResponse("settings.html", {
         "request": request,
